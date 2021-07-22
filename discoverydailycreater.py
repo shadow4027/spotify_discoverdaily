@@ -5,6 +5,7 @@ import pdb
 import socket
 # constants
 import requests
+import base64
 
 CONFIG_FILE = "config.json"
 
@@ -36,14 +37,16 @@ def create_config_structure():
     print("For this setup, please provide all the necessary information for the app to work correctly.")
 
     client_id = input("What is the client id?: ")
+    client_secret = input("What is the client secret?: ")
     print("Please follow this link to authorize your account")
     print(auth_url+quote(f'?client_id={client_id}'
-                f'&response_type=code&redirect_uri=http://localhost:8000/&scope=playlist-modify-private', safe="&=?"))
+                f'&response_type=code&redirect_uri=http://localhost:8000/&scope=playlist-modify-private playlist-read-private'
+                         , safe="&=?"))
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 8000))
         s.listen(1)
-        print("Waiting for auth token...")
+        print("Waiting for client secret...")
         c, addr = s.accept()
         with c:
             code = c.recv(4096).decode().split('=', maxsplit=1)[1].split(' ', maxsplit=1)[0]
@@ -63,13 +66,22 @@ def create_config_structure():
         body_param = {
             "grant_type": "authorization_code",
             "code": code,
-            "redirect_uri": "http://localhost:8000/"
+            "redirect_uri": "http://localhost:8000/",
+            "client_id": client_id,
+            "client_secret": client_secret
         }
 
-        response = requests.request("POST", token_url, headers= {"Authorization": f"Basic {client_id+code}"},
-                                    data=body_param)
-        pdb.set_trace()
-
+        auth_header = base64.urlsafe_b64encode((client_id + ':' + code).encode('ascii')).replace(b'=', b'')
+        headers = {
+            # "Authorization": f"Basic {auth_header.decode('ascii')}",
+                   'Content-Type': 'application/x-www-form-urlencoded'}
+        # print(headers["Authorization"])
+        response = requests.request("POST", token_url, data=body_param, headers=headers)
+        print(response.json())
+        if not response.status_code == 200:
+            pdb.set_trace()
+        config.update(response.json())
+        config.update({'client_secret': client_secret})
         return config
 
 
