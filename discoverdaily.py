@@ -113,9 +113,11 @@ class DiscoverDaily(object):
     def build_daily_discover_playlist(self):
         tracks_to_be_added = []
         discover_daily_info, daily_mix_playlists = self._get_playlists()
+        self._clear_playlist(discover_daily_info)
         for daily_mix_url in daily_mix_playlists:
             print(f"looking in {daily_mix_url}...")
             tracks_to_be_added += self._get_unliked_songs_from_playlist(daily_mix_url)
+        self._add_to_playlist(discover_daily_info[0], tracks_to_be_added)
 
     def _get_unliked_songs_from_playlist(self, playlist_url: str, get_all_songs=False):
         songs = []
@@ -130,10 +132,10 @@ class DiscoverDaily(object):
                 response_json = response.json()
                 for track in response_json.get("items"):
                     if get_all_songs:
-                        songs.append(track.get("uri"))
+                        songs.append(track.get("track").get("uri"))
                     else:
                         if not track.get("track").get("id") in self._liked_songs:
-                            songs.append(track.get("uri"))
+                            songs.append(track.get("track").get("uri"))
                             print(f'adding {track.get("track").get("name")}')
                 playlist_url = response_json.get("next")
                 if not playlist_url:
@@ -157,14 +159,62 @@ class DiscoverDaily(object):
         if response.status_code == 201:
             response_json = response.json()
             print("Created discover daily")
-            return response_json.get("id"), response_json.get("uri")
+            return response_json.get("id"), response_json.get("href")
         else:
             print(response.status_code, response.reason)
             print(response.text)
             raise Exception("Unable to create discover daily playlist")
 
+    def _add_to_playlist(self, playlist_id, song_list):
+        headers = {
+            "Authorization": self._token_type + ' ' + self._access_token,
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+        add_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+        songs_to_add = song_list
+        while songs_to_add:
+            current_songs_to_add = []
+            if len(songs_to_add) >= 100:
+                current_songs_to_add = songs_to_add[:100]
+                songs_to_add = songs_to_add[100:]
+            else:
+                current_songs_to_add = songs_to_add
+                songs_to_add = []
+            response = requests.post(add_url, json={"uris": current_songs_to_add}, headers=headers)
+            if not response.status_code == 201:
+                print(response.status_code, response.reason)
+                print(response.text)
+                raise Exception(f"Error trying to add songs to {playlist_id}")
+            if not songs_to_add:
+                break
+
     def _clear_playlist(self, playlist: []):
-        songs_to_remove = self._get_unliked_songs_from_playlist(playlist[1], get_all_songs=True)
+        headers = {
+            "Authorization": self._token_type + ' ' + self._access_token,
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+        delete_url = f"https://api.spotify.com/v1/playlists/{playlist[0]}/tracks"
+        songs_to_remove = self._get_unliked_songs_from_playlist(playlist[1] + "/tracks", get_all_songs=True)
+        while songs_to_remove:
+            current_songs_to_remove = []
+            if len(songs_to_remove) >= 100:
+                current_songs_to_remove = songs_to_remove[:100]
+                songs_to_remove = songs_to_remove[100:]
+            else:
+                current_songs_to_remove = songs_to_remove
+                songs_to_remove = []
+            tracks_dict = {"tracks": []}
+            for song_uri in current_songs_to_remove:
+                tracks_dict.get("tracks").append({"uri": song_uri})
+            response = requests.delete(delete_url, json=tracks_dict, headers=headers)
+            if not response.status_code == 200:
+                print(response.status_code, response.reason)
+                print(response.text)
+                raise Exception(f"Error trying to clear {playlist}")
+            if not songs_to_remove:
+                break
 
     def _get_playlists(self):
         playlist_urls = []
@@ -188,7 +238,7 @@ class DiscoverDaily(object):
                 if "Discover Daily" in playlist.get("name"):
                     print("found discover daily...")
                     discover_daily_info.append(playlist.get("id"))
-                    discover_daily_info.append(playlist.get("uri"))
+                    discover_daily_info.append(playlist.get("href"))
                 else:
                     user_id = playlist.get("owner").get("id")
 
@@ -281,7 +331,6 @@ if __name__ == "__main__":
         with open(CONFIG_FILE, 'r') as conf:
             discover_instance = DiscoverDaily(json.load(conf))
             discover_instance.build_daily_discover_playlist()
-        print("COnfig file loaded...")
     else:
         print("Config file does not exist, so attempting to create one")
         Spotify_config = DiscoverDaily.create_config()
