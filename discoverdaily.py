@@ -97,7 +97,7 @@ class DiscoverDaily(object):
                 "refresh_token": self._refresh_token,
                 "client_id": self._client_id
             }
-            response = requests.post(url=self.TOKEN_URL, data=data_params)
+            response = requests.post(url=self.TOKEN_URL, headers=headers, data=data_params)
             if response.status_code == 200:
                 response_json = response.json()
                 self._access_token = response_json.get("access_token")
@@ -117,8 +117,8 @@ class DiscoverDaily(object):
             print(f"looking in {daily_mix_url}...")
             tracks_to_be_added += self._get_unliked_songs_from_playlist(daily_mix_url)
 
-    def _get_unliked_songs_from_playlist(self, playlist_url: str):
-        unliked_songs = []
+    def _get_unliked_songs_from_playlist(self, playlist_url: str, get_all_songs=False):
+        songs = []
         headers = {
             "Authorization": self._token_type + ' ' + self._access_token,
             "Accept": "application/json",
@@ -129,13 +129,16 @@ class DiscoverDaily(object):
             if response.status_code == 200:
                 response_json = response.json()
                 for track in response_json.get("items"):
-                    if not track.get("track").get("id") in self._liked_songs:
-                        unliked_songs.append(track.get)
-                        print(f'adding {track.get("track").get("name")}')
+                    if get_all_songs:
+                        songs.append(track.get("uri"))
+                    else:
+                        if not track.get("track").get("id") in self._liked_songs:
+                            songs.append(track.get("uri"))
+                            print(f'adding {track.get("track").get("name")}')
                 playlist_url = response_json.get("next")
                 if not playlist_url:
                     break
-        return unliked_songs
+        return songs
 
     def _create_discover_daily(self, user_id: str):
         creation_url = f"https://api.spotify.com/v1/users/{user_id}/playlists"
@@ -160,8 +163,8 @@ class DiscoverDaily(object):
             print(response.text)
             raise Exception("Unable to create discover daily playlist")
 
-    def _clear_playlist(self, playlist_url: str):
-        pass
+    def _clear_playlist(self, playlist: []):
+        songs_to_remove = self._get_unliked_songs_from_playlist(playlist[1], get_all_songs=True)
 
     def _get_playlists(self):
         playlist_urls = []
