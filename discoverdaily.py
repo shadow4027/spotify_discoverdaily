@@ -112,11 +112,10 @@ class DiscoverDaily(object):
 
     def build_daily_discover_playlist(self):
         tracks_to_be_added = []
-        daily_mix_playlists = self._get_daily_mix_urls()
+        discover_daily_info, daily_mix_playlists = self._get_playlists()
         for daily_mix_url in daily_mix_playlists:
-            print(f"looking in {daily_mix}...")
+            print(f"looking in {daily_mix_url}...")
             tracks_to_be_added += self._get_unliked_songs_from_playlist(daily_mix_url)
-
 
     def _get_unliked_songs_from_playlist(self, playlist_url: str):
         unliked_songs = []
@@ -138,9 +137,36 @@ class DiscoverDaily(object):
                     break
         return unliked_songs
 
+    def _create_discover_daily(self, user_id: str):
+        creation_url = f"https://api.spotify.com/v1/users/{user_id}/playlists"
+        headers = {
+            "Authorization": self._token_type + ' ' + self._access_token,
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+        data_params = {
+            "name": "Discover Daily",
+            "public": "false",
+            "description": "All the unliked songs from the daily mixes in one convenient place."
+        }
+        response = requests.post(creation_url, headers=headers, json=data_params)
+        # status code 201 indicates successful creation
+        if response.status_code == 201:
+            response_json = response.json()
+            print("Created discover daily")
+            return response_json.get("id"), response_json.get("uri")
+        else:
+            print(response.status_code, response.reason)
+            print(response.text)
+            raise Exception("Unable to create discover daily playlist")
 
-    def _get_daily_mix_urls(self):
+    def _clear_playlist(self, playlist_url: str):
+        pass
+
+    def _get_playlists(self):
         playlist_urls = []
+        discover_daily_info = []
+        user_id = ""
         self.validate_token()
         api_url = "https://api.spotify.com/v1/me/playlists?limit=50"
         headers = {
@@ -155,7 +181,17 @@ class DiscoverDaily(object):
                 if "Daily Mix" in playlist.get("name"):
                     playlist_urls.append(playlist.get("tracks").get("href"))
                     print(f'found playlist: {playlist.get("tracks").get("href")}')
-        return playlist_urls
+
+                if "Discover Daily" in playlist.get("name"):
+                    print("found discover daily...")
+                    discover_daily_info.append(playlist.get("id"))
+                    discover_daily_info.append(playlist.get("uri"))
+                else:
+                    user_id = playlist.get("owner").get("id")
+
+        if not discover_daily_info:
+            discover_daily_info = self._create_discover_daily(user_id)
+        return discover_daily_info, playlist_urls
 
 
     @classmethod
@@ -241,8 +277,7 @@ if __name__ == "__main__":
     if path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, 'r') as conf:
             discover_instance = DiscoverDaily(json.load(conf))
-            temp = discover_instance._get_daily_mix_urls()
-            discover_instance._get_unliked_songs_from_playlist(temp[0])
+            discover_instance.build_daily_discover_playlist()
         print("COnfig file loaded...")
     else:
         print("Config file does not exist, so attempting to create one")
