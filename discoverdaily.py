@@ -342,6 +342,7 @@ if __name__ == "__main__":
             discover_instance = DiscoverDaily(config_data)
             discover_instance.build_daily_discover_playlist()
             config_data.update(discover_instance.return_config())
+            conf.seek(0)
             json.dump(config_data, conf, indent=4, sort_keys=True)
     else:
         print("Config file does not exist, so attempting to create one")
