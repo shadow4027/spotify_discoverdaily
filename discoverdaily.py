@@ -62,7 +62,6 @@ class DiscoverDaily(object):
             "refresh_token": self._refresh_token
         }
 
-
     def build_liked_songs(self):
         api_url = "https://api.spotify.com/v1/me/tracks"
         off_set = 0
@@ -120,6 +119,7 @@ class DiscoverDaily(object):
                 raise Exception("Something went wrong refreshing the token")
 
     def build_daily_discover_playlist(self):
+        self.build_liked_songs()
         tracks_to_be_added = []
         discover_daily_info, daily_mix_playlists = self._get_playlists()
         self._clear_playlist(discover_daily_info)
