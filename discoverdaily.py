@@ -1,3 +1,4 @@
+import base64
 import json
 import pdb
 import time
@@ -51,12 +52,16 @@ class DiscoverDaily(object):
         self._token_type = config.get("token_type")
         if self._token_type is None:
             raise exception_temp("config must have a token_type value")
+        self._liked_songs = []
 
-        self._liked_songs = config.get("liked_songs")
-        if not self._liked_songs:
-            self._liked_songs = []
-            print("liked_songs was invalid. Constructing liked songs list...")
-            self.build_liked_songs()
+
+    def return_config(self):
+        return {
+            "access_token": self._access_token,
+            "time_stamp": self._time_stamp,
+            "refresh_token": self._refresh_token
+        }
+
 
     def build_liked_songs(self):
         api_url = "https://api.spotify.com/v1/me/tracks"
@@ -95,7 +100,8 @@ class DiscoverDaily(object):
             data_params = {
                 "grant_type": "refresh_token",
                 "refresh_token": self._refresh_token,
-                "client_id": self._client_id
+                "client_id": self._client_id,
+                "client_secret": self._client_secret
             }
             response = requests.post(url=self.TOKEN_URL, headers=headers, data=data_params)
             if response.status_code == 200:
@@ -103,11 +109,14 @@ class DiscoverDaily(object):
                 self._access_token = response_json.get("access_token")
                 self._token_type = response_json.get("token_type")
                 self._expires_in = response_json.get("expires_in")
-                self._refresh_token = response_json.get("refresh_token")
+                refresh_token = response_json.get("refresh_token")
+                if refresh_token:
+                    self._refresh_token = refresh_token
                 self._scope = response_json.get("scope")
             else:
                 print(response.status_code, response.reason)
                 print(response.text)
+                print(data_params.get("refresh_token"))
                 raise Exception("Something went wrong refreshing the token")
 
     def build_daily_discover_playlist(self):
@@ -328,9 +337,12 @@ if __name__ == "__main__":
     CONFIG_FILE = "config.json"
 
     if path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r') as conf:
-            discover_instance = DiscoverDaily(json.load(conf))
+        with open(CONFIG_FILE, 'r+') as conf:
+            config_data = json.load(conf)
+            discover_instance = DiscoverDaily(config_data)
             discover_instance.build_daily_discover_playlist()
+            config_data.update(discover_instance.return_config())
+            json.dump(config_data, conf, indent=4, sort_keys=True)
     else:
         print("Config file does not exist, so attempting to create one")
         Spotify_config = DiscoverDaily.create_config()
