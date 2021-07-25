@@ -133,3 +133,6 @@ dmypy.json
 
 # config created by the app
 config.json
+
+#files for deployment to server
+toserver.bat
