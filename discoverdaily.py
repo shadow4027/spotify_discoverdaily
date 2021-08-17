@@ -5,7 +5,7 @@ import time
 import urllib.parse
 from os import path
 import requests
-
+from sys import argv
 
 class DiscoverDaily(object):
     """
@@ -334,9 +334,12 @@ class DiscoverDaily(object):
 
 if __name__ == "__main__":
     # check for config file
-    CONFIG_FILE = "config.json"
+    if len(argv) > 1:
+        CONFIG_FILE = argv[1]
+    else:
+        CONFIG_FILE = "config.json"
     config_data = None
-    if path.exists(CONFIG_FILE):
+    if path.exists(CONFIG_FILE):+9-*/
         with open(CONFIG_FILE, 'r') as conf:
             config_data = json.load(conf)
             discover_instance = DiscoverDaily(config_data)
